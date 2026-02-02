@@ -1,0 +1,172 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run start      # Start Expo dev server (Expo Go - limited features)
+npm run ios        # Build and run on iOS simulator (native build required for LLM)
+npm run android    # Build and run on Android emulator (native build required for LLM)
+npm run web        # Run in web browser
+npm run lint       # Run ESLint
+npx expo prebuild  # Generate native iOS/Android projects
+```
+
+## Tech Stack
+
+- **Expo 54** with React Native 0.81.5 and React 19.1.0
+- **TypeScript** with strict mode enabled
+- **Expo Router** for file-based navigation
+- **React Native Reanimated 4.x** for animations
+- **AsyncStorage** for game state persistence
+- **llama.rn** for local LLM inference (AI puzzle generation)
+- **expo-file-system** for model storage
+- Targets iOS, Android, and Web
+
+## Architecture
+
+This is a NYT-style games app with four games: Wordle, Connections, Crossword, and Sudoku.
+
+### Directory Structure
+
+- `app/` - Expo Router screens
+  - `(tabs)/` - Bottom tab navigation (Games hub at index)
+  - `games/` - Stack navigator containing game screens
+- `components/games/` - Game UI components organized by game (`wordle/`, `connections/`, `crossword/`, `sudoku/`, `shared/`)
+- `hooks/games/` - Game state hooks (one per game, e.g., `use-wordle-game.ts`)
+- `hooks/` - Root-level hooks (`use-llm.ts`, `use-color-scheme.ts`)
+- `utils/games/` - Pure game logic functions (validation, evaluation, puzzle generation)
+- `types/games/` - TypeScript interfaces per game
+- `data/games/` - Puzzle data (word lists, puzzle definitions)
+- `constants/games/` - Colors and animation timing configs
+- `services/llm/` - Local LLM integration for AI puzzle generation
+
+### Game Implementation Pattern
+
+Each game follows this pattern:
+1. **Screen** (`app/games/<game>.tsx`) - Renders UI, uses the game hook
+2. **Hook** (`hooks/games/use-<game>-game.ts`) - Manages state, persistence, game actions
+3. **Logic** (`utils/games/<game>-logic.ts`) - Pure functions for game rules
+4. **Types** (`types/games/<game>.ts`) - TypeScript definitions
+5. **Data** (`data/games/<game>-*.ts`) - Puzzle/word data
+6. **Components** (`components/games/<game>/`) - UI components
+
+### Path Aliases
+
+Use `@/*` to import from project root (configured in tsconfig.json):
+```typescript
+import { useCrosswordGame } from '@/hooks/games/use-crossword-game';
+```
+
+### Theme Support
+
+Games use `useGameColors()` hook which returns colors adapted for light/dark mode. Color constants are in `constants/games/colors.ts`.
+
+## Games
+
+### Wordle
+- 5-letter word guessing game with 6 attempts
+- **14,855 words** in dictionary (comprehensive English 5-letter words)
+- Random word selection for infinite replayability
+- State: guesses, tile states (correct/present/absent), keyboard state
+- Storage key: `wordle_game_state`
+
+### Connections
+- Group 16 words into 4 categories of 4 words each
+- Categories have difficulty levels (1-4) mapped to colors (yellow, green, blue, purple)
+- Supports AI-generated puzzles via local LLM
+- Storage key: `connections_game_state`
+
+### Crossword
+- Classic crossword puzzle with clues
+- Grid-based input with across/down navigation
+- Storage key: `crossword_game_state`
+
+### Sudoku
+- 9x9 number puzzle with difficulty levels (easy, medium, hard)
+- **Procedural puzzle generation** - infinite unique puzzles
+- Supports notes mode for candidates
+- Storage key: `sudoku-game-state`
+
+## Puzzle Generation
+
+### Sudoku (Local Algorithm)
+Sudoku puzzles are generated locally using backtracking:
+```typescript
+import { generateSudokuPuzzle } from '@/utils/games/sudoku-logic';
+const puzzle = generateSudokuPuzzle('medium'); // 'easy' | 'medium' | 'hard'
+```
+
+### AI Generation (Local LLM)
+Connections puzzles can be generated using a local LLM (DeepSeek-R1-Distill-Qwen-1.5B):
+```typescript
+import { generateConnectionsPuzzle } from '@/services/llm';
+const puzzle = await generateConnectionsPuzzle();
+```
+
+**Note:** LLM features require a native build (`npm run ios` or `npm run android`), not Expo Go. First use downloads the model (~1.1GB).
+
+## LLM Service
+
+Located in `services/llm/`:
+- `llm-service.ts` - Model download, loading, and inference
+- `puzzle-generator.ts` - Prompts for Connections and crossword clues
+- Uses llama.rn with DeepSeek-R1-Distill-Qwen-1.5B (Q4_K_M GGUF)
+
+```typescript
+import { llmService } from '@/services/llm';
+
+// Initialize (downloads model on first use)
+await llmService.initialize();
+
+// Generate text
+const response = await llmService.generate(prompt, maxTokens);
+
+// Check status
+llmService.getState(); // { status, progress, error }
+```
+
+## Animation Constants
+
+Located in `constants/games/animations.ts`:
+- `TILE_FLIP_DURATION`: 500ms
+- `TILE_FLIP_DELAY`: 150ms (stagger between tiles)
+- `BOUNCE_DURATION`: 150ms
+- `LETTER_POP_SCALE`: 1.1
+- `SHAKE_DURATION`: 400ms
+
+## Active Games Tracking
+
+The home screen shows in-progress games via `use-active-games.ts` hook:
+- Checks AsyncStorage for all game states
+- Shows progress (e.g., "3/6 guesses", "50% complete")
+- Supports quit functionality for each game type
+
+## State Persistence
+
+All games persist state to AsyncStorage:
+- Game state saved after each action
+- Loads saved game on app open
+- Stats tracked separately (games played, won, etc.)
+- `startNewGame()` and `quitGame()` functions to manage state
+
+## Building
+
+### Development (Expo Go)
+```bash
+npm run start
+```
+Note: LLM features won't work in Expo Go.
+
+### Native Build (required for LLM)
+```bash
+npx expo prebuild                    # Generate native projects
+npm run ios                          # Build and run iOS
+npm run android                      # Build and run Android
+```
+
+If pod install fails with encoding error:
+```bash
+cd ios && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install --repo-update
+```
