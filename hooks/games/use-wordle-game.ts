@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/utils/games/wordle-logic';
 import type { WordleGameState, WordleStats, LetterState, GameStatus } from '@/types/games';
 import { WORD_LENGTH, MAX_GUESSES } from '@/types/games';
+import type { GameType } from '@/types/games/streak';
 
 const STORAGE_KEY_STATE = 'wordle_game_state';
 const STORAGE_KEY_STATS = 'wordle_statistics';
@@ -21,7 +22,13 @@ const initialStats: WordleStats = {
 
 const MAX_HINTS = 2;
 
-export function useWordleGame() {
+interface UseWordleGameOptions {
+  onGameComplete?: (gameType: GameType) => void;
+}
+
+export function useWordleGame(options: UseWordleGameOptions = {}) {
+  const { onGameComplete } = options;
+  const hasRecordedCompletion = useRef(false);
   const [targetWord, setTargetWord] = useState<string>('');
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentGuess, setCurrentGuess] = useState('');
@@ -256,6 +263,7 @@ export function useWordleGame() {
     setShouldBounce(false);
     setHintsUsed(0);
     setRevealedHints([]);
+    hasRecordedCompletion.current = false;
   }, []);
 
   // Quit the current game
@@ -273,6 +281,7 @@ export function useWordleGame() {
       setShouldBounce(false);
       setHintsUsed(0);
       setRevealedHints([]);
+      hasRecordedCompletion.current = false;
     } catch (error) {
       console.error('Failed to quit game:', error);
     }
@@ -309,6 +318,12 @@ export function useWordleGame() {
       setStats(newStats);
       saveStats(newStats);
 
+      // Record game completion for streak tracking
+      if (!hasRecordedCompletion.current && onGameComplete) {
+        hasRecordedCompletion.current = true;
+        onGameComplete('wordle');
+      }
+
       const messages = ['Genius!', 'Magnificent!', 'Impressive!', 'Splendid!', 'Great!', 'Phew!'];
       showMessage(messages[guessNumber - 1] || 'Nice!', 2000);
       return;
@@ -333,9 +348,9 @@ export function useWordleGame() {
       setStats(newStats);
       saveStats(newStats);
 
-      showMessage(targetWord, 3000);
+      showMessage(`Game Over! The word was ${targetWord.toUpperCase()}`, 4000);
     }
-  }, [guesses, targetWord, stats, saveStats, showMessage]);
+  }, [guesses, targetWord, stats, saveStats, showMessage, onGameComplete]);
 
   return {
     targetWord,

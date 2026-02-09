@@ -1,4 +1,5 @@
 import { useActiveGames } from "@/hooks/games/use-active-games";
+import { useStreak } from "@/hooks/use-streak";
 import { SettingsModal } from "@/components/SettingsModal";
 import { Link, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -58,6 +59,7 @@ export default function GamesHub() {
   const today = new Date();
   const cardWidth = width * 0.75;
   const { activeGames, refresh, quitGame } = useActiveGames();
+  const { currentStreak, isStreakAtRisk, isLoaded: streakLoaded } = useStreak();
   const [showSettings, setShowSettings] = useState(false);
 
   // Refresh active games when screen comes into focus
@@ -89,6 +91,16 @@ export default function GamesHub() {
         <View style={styles.headerLeft}>
           <Text style={styles.brandTitle}>Free York Games</Text>
           <Text style={styles.date}>{formatDate(today)}</Text>
+          {streakLoaded && currentStreak > 0 && (
+            <View style={styles.streakContainer}>
+              <Text style={styles.streakText}>
+                {currentStreak} day streak
+              </Text>
+              {isStreakAtRisk && (
+                <Text style={styles.streakWarning}> - Play today!</Text>
+              )}
+            </View>
+          )}
         </View>
         <Pressable
           style={styles.settingsButton}
@@ -217,8 +229,24 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
     paddingHorizontal: 24,
-    marginBottom: 8,
+    marginBottom: 4,
     color: "#787c7e",
+  },
+  streakContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    marginBottom: 8,
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#f5793a",
+  },
+  streakWarning: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#c9302c",
   },
   carouselWrapper: {
     height: 196,

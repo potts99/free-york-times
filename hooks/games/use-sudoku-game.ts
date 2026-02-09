@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SudokuGameState, SudokuGrid, CellValue } from '@/types/games/sudoku';
 import {
@@ -10,11 +10,18 @@ import {
   SudokuDifficulty,
 } from '@/utils/games/sudoku-logic';
 import { useSettings } from '@/hooks/use-settings';
+import type { GameType } from '@/types/games/streak';
 
 const STORAGE_KEY = 'sudoku-game-state';
 const MAX_HINTS = 3;
 
-export function useSudokuGame() {
+interface UseSudokuGameOptions {
+  onGameComplete?: (gameType: GameType) => void;
+}
+
+export function useSudokuGame(options: UseSudokuGameOptions = {}) {
+  const { onGameComplete } = options;
+  const hasRecordedCompletion = useRef(false);
   const { settings } = useSettings();
   const [gameState, setGameState] = useState<SudokuGameState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,6 +131,12 @@ export function useSudokuGame() {
       const checkedGrid = checkForErrors(newGrid);
       const isComplete = isGridComplete(checkedGrid) && isSolutionCorrect(checkedGrid, prev.puzzle);
 
+      // Record game completion for streak tracking
+      if (isComplete && !hasRecordedCompletion.current && onGameComplete) {
+        hasRecordedCompletion.current = true;
+        onGameComplete('sudoku');
+      }
+
       const newState: SudokuGameState = {
         ...prev,
         grid: checkedGrid,
@@ -134,7 +147,7 @@ export function useSudokuGame() {
       saveGameState(newState);
       return newState;
     });
-  }, []);
+  }, [onGameComplete]);
 
   const clearCell = useCallback(() => {
     setGameState((prev) => {
@@ -188,6 +201,12 @@ export function useSudokuGame() {
           const checkedGrid = checkForErrors(newGrid);
           const isComplete = isGridComplete(checkedGrid) && isSolutionCorrect(checkedGrid, prev.puzzle);
 
+          // Record game completion for streak tracking
+          if (isComplete && !hasRecordedCompletion.current && onGameComplete) {
+            hasRecordedCompletion.current = true;
+            onGameComplete('sudoku');
+          }
+
           const newHintsUsed = hintsUsed + 1;
           setHintsUsed(newHintsUsed);
 
@@ -219,6 +238,12 @@ export function useSudokuGame() {
             const checkedGrid = checkForErrors(newGrid);
             const isComplete = isGridComplete(checkedGrid) && isSolutionCorrect(checkedGrid, prev.puzzle);
 
+            // Record game completion for streak tracking
+            if (isComplete && !hasRecordedCompletion.current && onGameComplete) {
+              hasRecordedCompletion.current = true;
+              onGameComplete('sudoku');
+            }
+
             const newHintsUsed = hintsUsed + 1;
             setHintsUsed(newHintsUsed);
 
@@ -238,7 +263,7 @@ export function useSudokuGame() {
 
       return prev;
     });
-  }, [hintsUsed]);
+  }, [hintsUsed, onGameComplete]);
 
   const startNewGame = useCallback((difficulty?: SudokuDifficulty) => {
     const puzzleDifficulty = difficulty || settings.sudokuDifficulty;
@@ -255,6 +280,7 @@ export function useSudokuGame() {
     };
     setGameState(newState);
     setHintsUsed(0);
+    hasRecordedCompletion.current = false;
     saveGameState(newState, 0);
   }, [settings.sudokuDifficulty]);
 
@@ -274,6 +300,7 @@ export function useSudokuGame() {
       };
       setGameState(newState);
       setHintsUsed(0);
+      hasRecordedCompletion.current = false;
     } catch (e) {
       console.error('Failed to quit sudoku game:', e);
     }

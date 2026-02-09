@@ -1,15 +1,20 @@
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ConnectionsBoard, MistakeIndicator } from '@/components/games/connections';
-import { GameHeader } from '@/components/games/shared';
+import { GameHeader, ShareButton } from '@/components/games/shared';
 import { useConnectionsGame } from '@/hooks/games/use-connections-game';
 import { useGameColors } from '@/hooks/games/use-game-colors';
+import { useStreak } from '@/hooks/use-streak';
 import { WORDS_PER_CATEGORY } from '@/types/games';
+import { generateConnectionsShareText } from '@/utils/games/share-logic';
 
 export default function ConnectionsScreen() {
   const colors = useGameColors();
   const router = useRouter();
+  const { currentStreak, recordGamePlayed } = useStreak();
+
   const {
     remainingWords,
     selectedWords,
@@ -27,7 +32,24 @@ export default function ConnectionsScreen() {
     startNewGame,
     quitGame,
     useHint,
-  } = useConnectionsGame();
+  } = useConnectionsGame({
+    onGameComplete: recordGamePlayed,
+  });
+
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+
+  // Generate share text when game is won
+  const shareText = useMemo(() => {
+    if (gameStatus !== 'won') return '';
+    return generateConnectionsShareText(solvedCategories, currentStreak);
+  }, [gameStatus, solvedCategories, currentStreak]);
+
+  const handleShareComplete = (result: { success: boolean; method: string }) => {
+    if (result.success) {
+      setShareMessage(result.method === 'clipboard' ? 'Copied to clipboard!' : 'Shared!');
+      setTimeout(() => setShareMessage(null), 2000);
+    }
+  };
 
   const handleQuit = () => {
     Alert.alert(
@@ -155,9 +177,22 @@ export default function ConnectionsScreen() {
           </Pressable>
         </View>
 
-        {/* New Game Button */}
+        {/* Share Message Toast */}
+        {shareMessage && (
+          <View style={[styles.shareMessageContainer, { backgroundColor: '#ba81c5' }]}>
+            <Text style={styles.shareMessageText}>{shareMessage}</Text>
+          </View>
+        )}
+
+        {/* End Game Buttons */}
         {gameStatus !== 'playing' && (
-          <View style={styles.newGameContainer}>
+          <View style={styles.endGameContainer}>
+            {gameStatus === 'won' && (
+              <ShareButton
+                shareText={shareText}
+                onShareComplete={handleShareComplete}
+              />
+            )}
             <TouchableOpacity
               style={[styles.newGameButton, { backgroundColor: '#ba81c5' }]}
               onPress={startNewGame}
@@ -244,18 +279,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  newGameContainer: {
-    alignItems: 'center',
+  endGameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
     paddingTop: 16,
   },
   newGameButton: {
     paddingVertical: 14,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     borderRadius: 8,
   },
   newGameText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  shareMessageContainer: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    zIndex: 100,
+  },
+  shareMessageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

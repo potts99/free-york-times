@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, ActivityIndicator, Alert, TouchableOpacity, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSudokuGame } from '@/hooks/games/use-sudoku-game';
 import { useGameColors } from '@/hooks/games/use-game-colors';
+import { useStreak } from '@/hooks/use-streak';
 import { SudokuGrid } from '@/components/games/sudoku/SudokuGrid';
 import { SudokuKeypad } from '@/components/games/sudoku/SudokuKeypad';
-import { GameHeader } from '@/components/games/shared';
+import { GameHeader, ShareButton } from '@/components/games/shared';
 import { formatTime, SudokuDifficulty } from '@/utils/games/sudoku-logic';
+import { generateSudokuShareText } from '@/utils/games/share-logic';
 
 const DIFFICULTY_OPTIONS: { value: SudokuDifficulty; label: string; clues: string }[] = [
   { value: 'easy', label: 'Easy', clues: '~38 clues' },
@@ -20,6 +22,9 @@ export default function SudokuScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [showDifficultyPicker, setShowDifficultyPicker] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const { currentStreak, recordGamePlayed } = useStreak();
+
   const {
     gameState,
     isLoading,
@@ -31,7 +36,9 @@ export default function SudokuScreen() {
     startNewGame,
     quitGame,
     useHint,
-  } = useSudokuGame();
+  } = useSudokuGame({
+    onGameComplete: recordGamePlayed,
+  });
 
   const handleNewGame = (difficulty: SudokuDifficulty) => {
     startNewGame(difficulty);
@@ -40,6 +47,38 @@ export default function SudokuScreen() {
 
   const gridSize = Math.min(width - 32, 360);
   const cellSize = gridSize / 9;
+
+  // Calculate values that depend on gameState (safely handling null)
+  const elapsedTime = gameState
+    ? (gameState.endTime
+        ? gameState.endTime - gameState.startTime
+        : Date.now() - gameState.startTime)
+    : 0;
+
+  const difficultyLabel = gameState
+    ? gameState.puzzle.difficulty.charAt(0).toUpperCase() + gameState.puzzle.difficulty.slice(1)
+    : '';
+
+  // Calculate hints used (3 max - remaining)
+  const hintsUsed = 3 - hintsRemaining;
+
+  // Generate share text when game is complete
+  const shareText = useMemo(() => {
+    if (!gameState?.isComplete) return '';
+    return generateSudokuShareText(
+      gameState.puzzle.difficulty,
+      elapsedTime,
+      hintsUsed,
+      currentStreak
+    );
+  }, [gameState?.isComplete, gameState?.puzzle.difficulty, elapsedTime, hintsUsed, currentStreak]);
+
+  const handleShareComplete = (result: { success: boolean; method: string }) => {
+    if (result.success) {
+      setShareMessage(result.method === 'clipboard' ? 'Copied to clipboard!' : 'Shared!');
+      setTimeout(() => setShareMessage(null), 2000);
+    }
+  };
 
   const handleQuit = () => {
     Alert.alert(
@@ -59,6 +98,11 @@ export default function SudokuScreen() {
     );
   };
 
+  // Check if any progress has been made
+  const hasProgress = gameState?.grid.some(row =>
+    row.some(cell => !cell.isGiven && (cell.value !== null || cell.notes.size > 0))
+  ) ?? false;
+
   if (isLoading || !gameState) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.surface }]} edges={['top']}>
@@ -69,18 +113,6 @@ export default function SudokuScreen() {
       </SafeAreaView>
     );
   }
-
-  const elapsedTime = gameState.endTime
-    ? gameState.endTime - gameState.startTime
-    : Date.now() - gameState.startTime;
-
-  const difficultyLabel = gameState.puzzle.difficulty.charAt(0).toUpperCase() +
-    gameState.puzzle.difficulty.slice(1);
-
-  // Check if any progress has been made
-  const hasProgress = gameState.grid.some(row =>
-    row.some(cell => !cell.isGiven && (cell.value !== null || cell.notes.size > 0))
-  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.surface }]} edges={['top', 'bottom']}>
@@ -93,6 +125,13 @@ export default function SudokuScreen() {
             : undefined
         }
       />
+
+      {/* Share Message Toast */}
+      {shareMessage && (
+        <View style={[styles.shareMessageContainer, { backgroundColor: '#f5793a' }]}>
+          <Text style={styles.shareMessageText}>{shareMessage}</Text>
+        </View>
+      )}
 
       {gameState.isComplete && (
         <View style={[styles.completeBanner, { backgroundColor: colors.correct }]}>
@@ -139,12 +178,18 @@ export default function SudokuScreen() {
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              style={[styles.newGameButton, { backgroundColor: '#f5793a' }]}
-              onPress={() => setShowDifficultyPicker(true)}
-            >
-              <Text style={styles.newGameText}>New Game</Text>
-            </TouchableOpacity>
+            <View style={styles.endGameButtons}>
+              <ShareButton
+                shareText={shareText}
+                onShareComplete={handleShareComplete}
+              />
+              <TouchableOpacity
+                style={[styles.newGameButton, { backgroundColor: '#f5793a' }]}
+                onPress={() => setShowDifficultyPicker(true)}
+              >
+                <Text style={styles.newGameText}>New Game</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -240,5 +285,23 @@ const styles = StyleSheet.create({
   difficultyClues: {
     fontSize: 11,
     marginTop: 2,
+  },
+  endGameButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  shareMessageContainer: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    zIndex: 100,
+  },
+  shareMessageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { getRandomConnectionsPuzzle } from '@/data/games/connections-puzzles';
@@ -12,6 +12,7 @@ import type {
   GameStatus,
 } from '@/types/games';
 import { MAX_MISTAKES, WORDS_PER_CATEGORY } from '@/types/games';
+import type { GameType } from '@/types/games/streak';
 
 const STORAGE_KEY_STATE = 'connections_game_state';
 const STORAGE_KEY_STATS = 'connections_statistics';
@@ -24,7 +25,13 @@ const initialStats: ConnectionsStats = {
 
 const MAX_HINTS = 2;
 
-export function useConnectionsGame() {
+interface UseConnectionsGameOptions {
+  onGameComplete?: (gameType: GameType) => void;
+}
+
+export function useConnectionsGame(options: UseConnectionsGameOptions = {}) {
+  const { onGameComplete } = options;
+  const hasRecordedCompletion = useRef(false);
   const [puzzle, setPuzzle] = useState<ConnectionsPuzzle | null>(null);
   const [remainingWords, setRemainingWords] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
@@ -214,6 +221,12 @@ export function useConnectionsGame() {
           setStats(newStats);
           saveStats(newStats);
 
+          // Record game completion for streak tracking
+          if (!hasRecordedCompletion.current && onGameComplete) {
+            hasRecordedCompletion.current = true;
+            onGameComplete('connections');
+          }
+
           showMessage(isPerfect ? 'Perfect!' : 'You won!', 2000);
         }
       }, 500);
@@ -268,6 +281,7 @@ export function useConnectionsGame() {
     saveStats,
     showMessage,
     isRevealing,
+    onGameComplete,
   ]);
 
   // Handle shuffle
@@ -340,6 +354,7 @@ export function useConnectionsGame() {
     setIsRevealing(false);
     setHintsUsed(0);
     setHintedWord(null);
+    hasRecordedCompletion.current = false;
   }, []);
 
   // Quit the current game
@@ -356,6 +371,7 @@ export function useConnectionsGame() {
       setIsRevealing(false);
       setHintsUsed(0);
       setHintedWord(null);
+      hasRecordedCompletion.current = false;
     } catch (error) {
       console.error('Failed to quit game:', error);
     }
@@ -376,6 +392,7 @@ export function useConnectionsGame() {
         setIsRevealing(false);
         setHintsUsed(0);
         setHintedWord(null);
+        hasRecordedCompletion.current = false;
       } else {
         // Fallback to random puzzle if AI fails
         showMessage('AI unavailable, using random puzzle');

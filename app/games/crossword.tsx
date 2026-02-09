@@ -1,14 +1,19 @@
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CrosswordGrid, CluePanel } from '@/components/games/crossword';
-import { GameKeyboard, GameHeader } from '@/components/games/shared';
+import { GameKeyboard, GameHeader, ShareButton } from '@/components/games/shared';
 import { useCrosswordGame } from '@/hooks/games/use-crossword-game';
 import { useGameColors } from '@/hooks/games/use-game-colors';
+import { useStreak } from '@/hooks/use-streak';
+import { generateCrosswordShareText } from '@/utils/games/share-logic';
 
 export default function CrosswordScreen() {
   const colors = useGameColors();
   const router = useRouter();
+  const { currentStreak, recordGamePlayed } = useStreak();
+
   const {
     puzzle,
     userGrid,
@@ -29,7 +34,32 @@ export default function CrosswordScreen() {
     generateAIPuzzle,
     quitGame,
     useHint,
-  } = useCrosswordGame();
+  } = useCrosswordGame({
+    onGameComplete: recordGamePlayed,
+  });
+
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+
+  // Parse elapsed time from formatted string for share text
+  const elapsedTimeMs = useMemo(() => {
+    const parts = formattedTime.split(':');
+    const minutes = parseInt(parts[0] || '0', 10);
+    const seconds = parseInt(parts[1] || '0', 10);
+    return (minutes * 60 + seconds) * 1000;
+  }, [formattedTime]);
+
+  // Generate share text when game is won
+  const shareText = useMemo(() => {
+    if (gameStatus !== 'won') return '';
+    return generateCrosswordShareText(elapsedTimeMs, currentStreak);
+  }, [gameStatus, elapsedTimeMs, currentStreak]);
+
+  const handleShareComplete = (result: { success: boolean; method: string }) => {
+    if (result.success) {
+      setShareMessage(result.method === 'clipboard' ? 'Copied to clipboard!' : 'Shared!');
+      setTimeout(() => setShareMessage(null), 2000);
+    }
+  };
 
   const handleQuit = () => {
     Alert.alert(
@@ -86,6 +116,13 @@ export default function CrosswordScreen() {
         />
       </View>
 
+      {/* Share Message Toast */}
+      {shareMessage && (
+        <View style={[styles.shareMessageContainer, { backgroundColor: '#4a90d9' }]}>
+          <Text style={styles.shareMessageText}>{shareMessage}</Text>
+        </View>
+      )}
+
       {/* Win message & New Game buttons */}
       {gameStatus === 'won' && (
         <View style={styles.winContainer}>
@@ -93,6 +130,10 @@ export default function CrosswordScreen() {
             Completed in {formattedTime}!
           </Text>
           <View style={styles.buttonRow}>
+            <ShareButton
+              shareText={shareText}
+              onShareComplete={handleShareComplete}
+            />
             <TouchableOpacity
               style={[styles.newGameButton, { backgroundColor: '#4a90d9' }]}
               onPress={startNewGame}
@@ -271,6 +312,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   hintText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  shareMessageContainer: {
+    position: 'absolute',
+    top: 100,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    zIndex: 100,
+  },
+  shareMessageText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',

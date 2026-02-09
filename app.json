@@ -1,16 +1,20 @@
 {
   "expo": {
-    "name": "free-york-times",
+    "name": "Infinite Mini",
     "slug": "free-york-times",
-    "version": "1.0.0",
+    "version": "1.1.0",
+    "owner": "potts99",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "freeyorktimes",
+    "scheme": "infinitemini",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.freeyorktimes"
+      "bundleIdentifier": "com.infinitemini.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.freeyorktimes"
+      "package": "com.infinitemini.app"
     },
     "web": {
       "output": "static",
@@ -41,7 +45,16 @@
           }
         }
       ],
-      "llama.rn",
+      [
+        "llama.rn",
+        {
+          "ios": {
+            "enableMetalValidation": false,
+            "enableExtendedVirtualAddressing": false,
+            "enableIncreasedMemoryLimit": false
+          }
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -54,6 +67,18 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "157c8abc-20fc-4a9f-9ea5-e6e9e421ce1b"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/157c8abc-20fc-4a9f-9ea5-e6e9e421ce1b"
     }
   }
 }

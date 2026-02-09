@@ -6,6 +6,11 @@ interface StatItem {
   value: string | number;
 }
 
+interface StreakInfo {
+  current: number;
+  max: number;
+}
+
 interface StatsModalProps {
   visible: boolean;
   onClose: () => void;
@@ -15,6 +20,7 @@ interface StatsModalProps {
     label: string;
     data: { key: string; count: number; highlight?: boolean }[];
   };
+  streak?: StreakInfo;
 }
 
 export function StatsModal({
@@ -23,6 +29,7 @@ export function StatsModal({
   title,
   stats,
   distribution,
+  streak,
 }: StatsModalProps) {
   const colors = useGameColors();
 
@@ -56,6 +63,28 @@ export function StatsModal({
           </View>
 
           <ScrollView style={styles.content}>
+            {/* Streak Section */}
+            {streak && streak.current > 0 && (
+              <View style={styles.streakSection}>
+                <View style={styles.streakItem}>
+                  <Text style={[styles.streakValue, { color: '#f5793a' }]}>
+                    {streak.current}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Current{'\n'}Streak
+                  </Text>
+                </View>
+                <View style={styles.streakItem}>
+                  <Text style={[styles.streakValue, { color: colors.textPrimary }]}>
+                    {streak.max}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Best{'\n'}Streak
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* Stats Grid */}
             <View style={styles.statsGrid}>
               {stats.map((stat, index) => (
@@ -147,6 +176,22 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  streakSection: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  streakItem: {
+    alignItems: 'center',
+  },
+  streakValue: {
+    fontSize: 36,
+    fontWeight: '700',
   },
   statsGrid: {
     flexDirection: 'row',

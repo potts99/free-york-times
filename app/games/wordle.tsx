@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { WordleBoard } from '@/components/games/wordle';
-import { GameKeyboard, GameHeader, StatsModal } from '@/components/games/shared';
+import { GameKeyboard, GameHeader, StatsModal, ShareButton } from '@/components/games/shared';
 import { useWordleGame } from '@/hooks/games/use-wordle-game';
 import { useGameColors } from '@/hooks/games/use-game-colors';
+import { useStreak } from '@/hooks/use-streak';
+import { generateWordleShareText } from '@/utils/games/share-logic';
 
 export default function WordleScreen() {
   const colors = useGameColors();
   const router = useRouter();
+  const { currentStreak, maxStreak, recordGamePlayed } = useStreak();
+
   const {
     guesses,
     currentGuess,
@@ -32,9 +36,25 @@ export default function WordleScreen() {
     startNewGame,
     quitGame,
     useHint,
-  } = useWordleGame();
+  } = useWordleGame({
+    onGameComplete: recordGamePlayed,
+  });
 
   const [showStats, setShowStats] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+
+  // Generate share text when game is complete
+  const shareText = useMemo(() => {
+    if (gameStatus === 'playing' || !targetWord) return '';
+    return generateWordleShareText(guesses, targetWord, currentStreak, gameStatus === 'won');
+  }, [gameStatus, guesses, targetWord, currentStreak]);
+
+  const handleShareComplete = (result: { success: boolean; method: string }) => {
+    if (result.success) {
+      setShareMessage(result.method === 'clipboard' ? 'Copied to clipboard!' : 'Shared!');
+      setTimeout(() => setShareMessage(null), 2000);
+    }
+  };
 
   const handleQuit = () => {
     Alert.alert(
@@ -82,6 +102,7 @@ export default function WordleScreen() {
         visible={showStats}
         onClose={() => setShowStats(false)}
         title="Statistics"
+        streak={{ current: currentStreak, max: maxStreak }}
         stats={[
           { label: 'Played', value: stats.gamesPlayed },
           {
@@ -148,11 +169,22 @@ export default function WordleScreen() {
         </View>
       )}
 
-      {/* New Game Button */}
+      {/* Share Message Toast */}
+      {shareMessage && (
+        <View style={[styles.shareMessageContainer, { backgroundColor: colors.correct }]}>
+          <Text style={styles.shareMessageText}>{shareMessage}</Text>
+        </View>
+      )}
+
+      {/* End Game Buttons */}
       {gameStatus !== 'playing' && (
-        <View style={styles.newGameContainer}>
+        <View style={styles.endGameContainer}>
+          <ShareButton
+            shareText={shareText}
+            onShareComplete={handleShareComplete}
+          />
           <TouchableOpacity
-            style={[styles.newGameButton, { backgroundColor: colors.correct }]}
+            style={[styles.newGameButton, { backgroundColor: colors.textPrimary }]}
             onPress={startNewGame}
           >
             <Text style={styles.newGameText}>New Game</Text>
@@ -198,19 +230,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  newGameContainer: {
-    alignItems: 'center',
+  endGameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
     paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   newGameButton: {
     paddingVertical: 14,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     borderRadius: 8,
   },
   newGameText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  shareMessageContainer: {
+    position: 'absolute',
+    bottom: 180,
+    left: '50%',
+    transform: [{ translateX: -80 }],
+    width: 160,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    zIndex: 100,
+    alignItems: 'center',
+  },
+  shareMessageText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   devWord: {
     textAlign: 'center',

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { getRandomCrosswordPuzzle } from '@/data/games/crossword-puzzles';
@@ -19,6 +19,7 @@ import type {
   Clue,
   GameStatus,
 } from '@/types/games';
+import type { GameType } from '@/types/games/streak';
 
 const STORAGE_KEY_STATE = 'crossword_game_state';
 const STORAGE_KEY_STATS = 'crossword_statistics';
@@ -31,7 +32,13 @@ const initialStats: CrosswordStats = {
 
 const MAX_HINTS = 3;
 
-export function useCrosswordGame() {
+interface UseCrosswordGameOptions {
+  onGameComplete?: (gameType: GameType) => void;
+}
+
+export function useCrosswordGame(options: UseCrosswordGameOptions = {}) {
+  const { onGameComplete } = options;
+  const hasRecordedCompletion = useRef(false);
   const [puzzle, setPuzzle] = useState<CrosswordPuzzle | null>(null);
   const [userGrid, setUserGrid] = useState<string[][]>([]);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
@@ -244,12 +251,18 @@ export function useCrosswordGame() {
             };
             setStats(newStats);
             saveStats(newStats);
+
+            // Record game completion for streak tracking
+            if (!hasRecordedCompletion.current && onGameComplete) {
+              hasRecordedCompletion.current = true;
+              onGameComplete('crossword');
+            }
           }
           return currentGrid;
         });
       }, 100);
     },
-    [puzzle, selectedCell, direction, gameStatus, stats, elapsedTime, saveStats]
+    [puzzle, selectedCell, direction, gameStatus, stats, elapsedTime, saveStats, onGameComplete]
   );
 
   // Handle backspace
@@ -380,11 +393,17 @@ export function useCrosswordGame() {
           };
           setStats(newStats);
           saveStats(newStats);
+
+          // Record game completion for streak tracking
+          if (!hasRecordedCompletion.current && onGameComplete) {
+            hasRecordedCompletion.current = true;
+            onGameComplete('crossword');
+          }
         }
         return currentGrid;
       });
     }, 100);
-  }, [puzzle, selectedCell, direction, gameStatus, hintsUsed, userGrid, stats, elapsedTime, saveStats]);
+  }, [puzzle, selectedCell, direction, gameStatus, hintsUsed, userGrid, stats, elapsedTime, saveStats, onGameComplete]);
 
   // Start a new game with static puzzle
   const startNewGame = useCallback(() => {
@@ -397,6 +416,7 @@ export function useCrosswordGame() {
     setStartTime(Date.now());
     setElapsedTime(0);
     setHintsUsed(0);
+    hasRecordedCompletion.current = false;
   }, []);
 
   // Generate a new AI puzzle
@@ -413,6 +433,7 @@ export function useCrosswordGame() {
         setStartTime(Date.now());
         setElapsedTime(0);
         setHintsUsed(0);
+        hasRecordedCompletion.current = false;
       } else {
         // Fallback to static puzzle if AI fails
         const newPuzzle = getRandomCrosswordPuzzle();
@@ -424,6 +445,7 @@ export function useCrosswordGame() {
         setStartTime(Date.now());
         setElapsedTime(0);
         setHintsUsed(0);
+        hasRecordedCompletion.current = false;
       }
     } catch (error) {
       console.error('Failed to generate AI puzzle:', error);
@@ -437,6 +459,7 @@ export function useCrosswordGame() {
       setStartTime(Date.now());
       setElapsedTime(0);
       setHintsUsed(0);
+      hasRecordedCompletion.current = false;
     } finally {
       setIsGenerating(false);
     }
@@ -455,6 +478,7 @@ export function useCrosswordGame() {
       setStartTime(Date.now());
       setElapsedTime(0);
       setHintsUsed(0);
+      hasRecordedCompletion.current = false;
     } catch (error) {
       console.error('Failed to quit game:', error);
     }
